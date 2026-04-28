@@ -1070,6 +1070,24 @@ def render_opportunities(df: pd.DataFrame) -> None:
             )
         st.markdown("</div>", unsafe_allow_html=True)
 
+    with right:
+        st.markdown('<div class="panel"><h3>Top Trim Candidates</h3>', unsafe_allow_html=True)
+        if trims.empty:
+            st.markdown('<div class="small-muted">No trim or exit candidates right now.</div>', unsafe_allow_html=True)
+        for _, row in trims.iterrows():
+            cls = "red" if row["Signal"] == "EXIT" else "yellow"
+            st.markdown(
+                f"""
+                <div class="opportunity">
+                    <div class="avatar">{str(row['Ticker'])[:2]}</div>
+                    <div><b>{row['Ticker']}</b><br><span class="small-muted">{row['Trend']} - {row['Timing']} - gain {pct(float(row['Gain %']))}</span></div>
+                    <div style="text-align:right;"><span class="pill {cls}">{row['Signal']}</span></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
+
 
 def render_alerts(df: pd.DataFrame) -> None:
     if df.empty:
@@ -1093,24 +1111,6 @@ def render_alerts(df: pd.DataFrame) -> None:
             unsafe_allow_html=True,
         )
     st.markdown("</div>", unsafe_allow_html=True)
-
-    with right:
-        st.markdown('<div class="panel"><h3>Top Trim Candidates</h3>', unsafe_allow_html=True)
-        if trims.empty:
-            st.markdown('<div class="small-muted">No trim or exit candidates right now.</div>', unsafe_allow_html=True)
-        for _, row in trims.iterrows():
-            cls = "red" if row["Signal"] == "EXIT" else "yellow"
-            st.markdown(
-                f"""
-                <div class="opportunity">
-                    <div class="avatar">{str(row['Ticker'])[:2]}</div>
-                    <div><b>{row['Ticker']}</b><br><span class="small-muted">{row['Trend']} - {row['Timing']} - gain {pct(float(row['Gain %']))}</span></div>
-                    <div style="text-align:right;"><span class="pill {cls}">{row['Signal']}</span></div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_allocation(df: pd.DataFrame, cash: float) -> None:
