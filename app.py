@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,7 @@ APP_DIR = Path(__file__).parent
 DATA_DIR = APP_DIR / "data"
 PORTFOLIO_PATH = DATA_DIR / "portfolio.json"
 SETTINGS_PATH = DATA_DIR / "settings.json"
+TRANSACTIONS_PATH = DATA_DIR / "transactions.json"
 
 DEFAULT_PORTFOLIO = {
     "dashboard_name": "Max ROI",
@@ -35,6 +37,49 @@ DEFAULT_PORTFOLIO = {
     "research_url": "https://finance.yahoo.com/",
     "holdings": [],
 }
+
+BROKER_PRESETS = {
+    "Robinhood + Coinbase": {
+        "stock_broker_url": "https://robinhood.com/",
+        "crypto_broker_url": "https://www.coinbase.com/",
+        "research_url": "https://finance.yahoo.com/",
+    },
+    "Fidelity + Coinbase": {
+        "stock_broker_url": "https://www.fidelity.com/trading/overview",
+        "crypto_broker_url": "https://www.coinbase.com/",
+        "research_url": "https://finance.yahoo.com/",
+    },
+    "Schwab + Kraken": {
+        "stock_broker_url": "https://www.schwab.com/trading",
+        "crypto_broker_url": "https://www.kraken.com/",
+        "research_url": "https://finance.yahoo.com/",
+    },
+    "E*TRADE + Coinbase": {
+        "stock_broker_url": "https://us.etrade.com/",
+        "crypto_broker_url": "https://www.coinbase.com/",
+        "research_url": "https://finance.yahoo.com/",
+    },
+    "Webull + Crypto.com": {
+        "stock_broker_url": "https://www.webull.com/",
+        "crypto_broker_url": "https://crypto.com/",
+        "research_url": "https://finance.yahoo.com/",
+    },
+}
+
+HOLDINGS_COLUMNS = [
+    "ticker",
+    "name",
+    "category",
+    "watch_only",
+    "shares",
+    "avg_cost",
+    "target_weight",
+    "buy_below",
+    "sell_above",
+    "stop_below",
+    "trade_url",
+    "research_url",
+]
 
 BALANCED_PRESET = {
     "risk_mode": "Auto",
@@ -348,6 +393,23 @@ def css() -> None:
         }
         .setup-callout h3 { margin-top: 0; color: #ffffff; }
         .setup-callout li, .setup-callout p { color: #e5eef9; }
+        .alert-row {
+            display: grid;
+            grid-template-columns: 110px 1fr auto;
+            gap: 0.7rem;
+            align-items: center;
+            border: 1px solid var(--line);
+            background: #08111f;
+            padding: 0.7rem;
+            margin-bottom: 0.45rem;
+        }
+        .auth-card {
+            max-width: 460px;
+            margin: 8vh auto;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            padding: 1.2rem;
+        }
         @media (max-width: 900px) {
             .cover { grid-template-columns: 1fr; }
             .ticker-tape, .link-grid, .setting-grid { grid-template-columns: 1fr 1fr; }
@@ -367,11 +429,31 @@ def normalize_url(value: object, fallback: str = "") -> str:
     return f"https://{url}"
 
 
+def safe_float(value: object, default: float = 0.0) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(result):
+        return default
+    return result
+
+
+def safe_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, float) and not math.isfinite(value):
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "watch"}
+
+
 def normalize_portfolio(portfolio: dict[str, Any]) -> dict[str, Any]:
     normalized = DEFAULT_PORTFOLIO.copy()
     if isinstance(portfolio, dict):
         normalized.update(portfolio)
-    normalized["cash"] = float(normalized.get("cash") or 0)
+    normalized["cash"] = safe_float(normalized.get("cash"))
     normalized["dashboard_name"] = str(normalized.get("dashboard_name") or "Max ROI").strip()
     normalized["owner_name"] = str(normalized.get("owner_name") or "Investor").strip()
     normalized["tagline"] = str(normalized.get("tagline") or DEFAULT_PORTFOLIO["tagline"]).strip()
@@ -392,9 +474,13 @@ def normalize_portfolio(portfolio: dict[str, Any]) -> dict[str, Any]:
                 "ticker": ticker,
                 "name": str(item.get("name") or ticker).strip(),
                 "category": category,
-                "shares": float(item.get("shares") or 0),
-                "avg_cost": float(item.get("avg_cost") or 0),
-                "target_weight": float(item.get("target_weight") or 0),
+                "shares": safe_float(item.get("shares")),
+                "avg_cost": safe_float(item.get("avg_cost")),
+                "target_weight": safe_float(item.get("target_weight")),
+                "watch_only": safe_bool(item.get("watch_only", False)),
+                "buy_below": safe_float(item.get("buy_below")),
+                "sell_above": safe_float(item.get("sell_above")),
+                "stop_below": safe_float(item.get("stop_below")),
                 "trade_url": normalize_url(item.get("trade_url"), default_trade_url),
                 "research_url": normalize_url(item.get("research_url"), yahoo_quote_url(ticker)),
             }
@@ -413,6 +499,86 @@ def asset_type_label(ticker: str, category: str) -> str:
     if ticker.startswith("^"):
         return "Index"
     return "Stock"
+
+
+def get_secret_value(name: str) -> str:
+    value = os.environ.get(name, "")
+    if value:
+        return value
+    try:
+        return str(st.secrets.get(name, ""))
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def require_auth() -> bool:
+    password = get_secret_value("DASHBOARD_PASSWORD")
+    if not password:
+        return True
+    if st.session_state.get("authenticated"):
+        return True
+    st.markdown('<div class="auth-card">', unsafe_allow_html=True)
+    st.title("Portfolio Access")
+    st.caption("Enter the dashboard password to continue.")
+    attempt = st.text_input("Password", type="password", key="dashboard_password")
+    if st.button("Unlock Dashboard", type="primary"):
+        if attempt == password:
+            st.session_state["authenticated"] = True
+            st.rerun()
+        st.error("Password did not match.")
+    st.markdown("</div>", unsafe_allow_html=True)
+    return False
+
+
+def load_transactions() -> list[dict[str, Any]]:
+    data = load_json(TRANSACTIONS_PATH, [])
+    return data if isinstance(data, list) else []
+
+
+def save_transactions(records: list[dict[str, Any]]) -> None:
+    save_json(TRANSACTIONS_PATH, records)
+
+
+def make_report_html(portfolio: dict[str, Any], df: pd.DataFrame, transactions: list[dict[str, Any]]) -> str:
+    generated = datetime.now().strftime("%Y-%m-%d %I:%M %p")
+    rows = ""
+    for _, row in df.iterrows():
+        rows += (
+            f"<tr><td>{row['Ticker']}</td><td>{row['Category']}</td><td>{money(float(row['Current']))}</td>"
+            f"<td>{money(float(row['Value']))}</td><td>{float(row['Gain %']):+.2f}%</td>"
+            f"<td>{row.get('Signal', '')}</td><td>{row.get('Alert', '')}</td></tr>"
+        )
+    ledger_rows = ""
+    for tx in transactions[-12:]:
+        ledger_rows += (
+            f"<tr><td>{tx.get('date', '')}</td><td>{tx.get('ticker', '')}</td><td>{tx.get('action', '')}</td>"
+            f"<td>{tx.get('shares', '')}</td><td>{tx.get('price', '')}</td><td>{tx.get('note', '')}</td></tr>"
+        )
+    return f"""<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{portfolio['dashboard_name']} Snapshot</title>
+<style>
+body {{ font-family: Arial, sans-serif; background:#07101c; color:#e5eef9; padding:32px; }}
+h1 {{ font-size:42px; margin-bottom:4px; }}
+.muted {{ color:#9fb0c7; }}
+table {{ border-collapse: collapse; width: 100%; margin-top: 18px; }}
+th, td {{ border:1px solid #22334a; padding:8px; text-align:left; }}
+th {{ background:#0d1a2b; }}
+.card {{ border:1px solid #22334a; background:#0b1422; padding:16px; margin:16px 0; }}
+</style>
+</head>
+<body>
+<h1>{portfolio['dashboard_name']}</h1>
+<div class="muted">{portfolio['owner_name']} | Generated {generated}</div>
+<div class="card">{portfolio['tagline']}</div>
+<h2>Portfolio Snapshot</h2>
+<table><thead><tr><th>Ticker</th><th>Category</th><th>Current</th><th>Value</th><th>Gain %</th><th>Signal</th><th>Alert</th></tr></thead><tbody>{rows}</tbody></table>
+<h2>Recent Ledger</h2>
+<table><thead><tr><th>Date</th><th>Ticker</th><th>Action</th><th>Shares</th><th>Price</th><th>Note</th></tr></thead><tbody>{ledger_rows}</tbody></table>
+</body>
+</html>"""
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -493,10 +659,24 @@ def range_position(history: pd.DataFrame) -> float:
 
 
 def calculate_signals(df: pd.DataFrame, settings: dict[str, Any], cash: float) -> pd.DataFrame:
+    if df.empty:
+        return df
     records: list[dict[str, Any]] = []
     deployable_cash = max(cash - float(settings["minimum_cash_reserve"]), 0)
     max_trade = deployable_cash * float(settings["max_trade_pct_available_cash"])
     for _, row in df.iterrows():
+        if bool(row.get("watch_only", False)):
+            records.append(
+                {
+                    "Status": "WATCHLIST",
+                    "Trend": "WATCH",
+                    "Timing": "ENTRY SCOUT",
+                    "Signal": "WATCH",
+                    "Score": 50,
+                    "Action $": 0.0,
+                }
+            )
+            continue
         gain_pct = float(row["gain_pct"])
         alloc_gap = float(row["target_weight"] - row["allocation_pct"])
         day_pct = float(row["daily_pct"])
@@ -579,6 +759,16 @@ def build_portfolio_frame(portfolio: dict[str, Any], histories: dict[str, pd.Dat
         cost = shares * avg_cost
         gain = value - cost
         gain_pct = ((current / avg_cost) - 1) * 100 if avg_cost else 0.0
+        buy_below = float(item.get("buy_below") or 0)
+        sell_above = float(item.get("sell_above") or 0)
+        stop_below = float(item.get("stop_below") or 0)
+        alert = "On Watch"
+        if stop_below and current <= stop_below:
+            alert = "Stop Review"
+        elif buy_below and current <= buy_below:
+            alert = "Buy Zone"
+        elif sell_above and current >= sell_above:
+            alert = "Sell Zone"
         rows.append(
             {
                 "Ticker": ticker,
@@ -589,11 +779,17 @@ def build_portfolio_frame(portfolio: dict[str, Any], histories: dict[str, pd.Dat
                 "Avg Cost": avg_cost,
                 "Shares": shares,
                 "shares": shares,
+                "Watch Only": bool(item.get("watch_only", False)),
+                "watch_only": bool(item.get("watch_only", False)),
                 "Value": value,
                 "Gain $": gain,
                 "Gain %": gain_pct,
                 "gain_pct": gain_pct,
                 "Target %": float(item["target_weight"]),
+                "Buy Below": buy_below,
+                "Sell Above": sell_above,
+                "Stop Below": stop_below,
+                "Alert": alert,
                 "Daily %": daily_change_pct(hist),
                 "range_position": range_position(hist),
                 "history": hist,
@@ -677,6 +873,7 @@ def render_holdings_table(df: pd.DataFrame) -> None:
             "Gain $",
             "Gain %",
             "Allocation",
+            "Alert",
             "Daily",
             "Status",
             "Trend",
@@ -721,6 +918,30 @@ def render_opportunities(df: pd.DataFrame) -> None:
                 unsafe_allow_html=True,
             )
         st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_alerts(df: pd.DataFrame) -> None:
+    if df.empty:
+        return
+    active_alerts = df[df["Alert"].isin(["Buy Zone", "Sell Zone", "Stop Review"])].copy()
+    st.markdown('<div class="panel"><h3>Price Alerts</h3>', unsafe_allow_html=True)
+    if active_alerts.empty:
+        st.markdown('<div class="small-muted">No buy-zone, sell-zone, or stop-review alerts are active.</div>', unsafe_allow_html=True)
+    for _, row in active_alerts.sort_values("Alert").iterrows():
+        cls = "green" if row["Alert"] == "Buy Zone" else "yellow"
+        if row["Alert"] == "Stop Review":
+            cls = "red"
+        st.markdown(
+            f"""
+            <div class="alert-row">
+                <b>{row['Ticker']}</b>
+                <span>{row['Name']} | Current {money(float(row['Current']))}</span>
+                <span class="pill {cls}">{row['Alert']}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
 
     with right:
         st.markdown('<div class="panel"><h3>Top Trim Candidates</h3>', unsafe_allow_html=True)
@@ -805,6 +1026,7 @@ def render_overview(portfolio: dict[str, Any], settings: dict[str, Any]) -> None
     render_metrics(df, cash)
     st.markdown("### Holdings")
     render_holdings_table(df)
+    render_alerts(df)
     render_opportunities(df)
     render_allocation(df, cash)
 
@@ -883,7 +1105,7 @@ def render_new_trade(portfolio: dict[str, Any], settings: dict[str, Any]) -> Non
     if not tickers:
         st.info("Add at least one tracked asset in Setup before planning a trade.")
         return
-    selected = st.selectbox("Ticker", tickers)
+    selected = st.selectbox("Ticker", tickers, key="new_trade_ticker")
     item = next(row for row in portfolio["holdings"] if row["ticker"] == selected)
     histories = fetch_history((selected,), "7d")
     price = latest_price(histories[selected], selected)
@@ -895,7 +1117,7 @@ def render_new_trade(portfolio: dict[str, Any], settings: dict[str, Any]) -> Non
     c1.metric("Current", money(price), target_note)
     c2.metric("Deployable Cash", money(deployable), f"cash reserve {money(float(settings['minimum_cash_reserve']))}")
     c3.metric("Max Trade", money(max_trade), "preset cap")
-    trade_amount = st.number_input("Planned trade amount", min_value=0.0, max_value=max(cash, 1.0), value=round(min(max_trade, cash), 2), step=1.0)
+    trade_amount = st.number_input("Planned trade amount", min_value=0.0, max_value=max(cash, 1.0), value=round(min(max_trade, cash), 2), step=1.0, key="new_trade_amount")
     shares = trade_amount / price if price else 0
     st.info(f"Estimated shares: {shares:,.6f}. This dashboard records planning signals only and does not place trades.")
     col1, col2, col3 = st.columns(3)
@@ -913,6 +1135,13 @@ def render_portfolio_identity(portfolio: dict[str, Any], key_prefix: str) -> Non
     portfolio["stock_broker_url"] = col1.text_input("Default stock/ETF trade link", value=portfolio["stock_broker_url"], key=f"{key_prefix}_stock_url")
     portfolio["crypto_broker_url"] = col2.text_input("Default crypto trade link", value=portfolio["crypto_broker_url"], key=f"{key_prefix}_crypto_url")
     portfolio["research_url"] = col3.text_input("Default research home", value=portfolio["research_url"], key=f"{key_prefix}_research_url")
+    st.markdown("#### Broker Presets")
+    preset_cols = st.columns(len(BROKER_PRESETS))
+    for index, (label, preset) in enumerate(BROKER_PRESETS.items()):
+        if preset_cols[index].button(label, key=f"{key_prefix}_preset_{index}", use_container_width=True):
+            portfolio.update(preset)
+            save_json(PORTFOLIO_PATH, normalize_portfolio(portfolio))
+            st.success(f"{label} links applied. Refresh or reopen Setup to see the fields update.")
 
 
 def render_holdings_editor(portfolio: dict[str, Any], key_prefix: str = "holdings", show_identity: bool = False) -> None:
@@ -926,8 +1155,11 @@ def render_holdings_editor(portfolio: dict[str, Any], key_prefix: str = "holding
     if show_identity:
         render_portfolio_identity(portfolio, key_prefix)
         st.divider()
+    holdings_df = pd.DataFrame(portfolio["holdings"])
+    if holdings_df.empty:
+        holdings_df = pd.DataFrame(columns=HOLDINGS_COLUMNS)
     edited = st.data_editor(
-        pd.DataFrame(portfolio["holdings"]),
+        holdings_df,
         use_container_width=True,
         num_rows="dynamic",
         key=f"{key_prefix}_editor",
@@ -936,6 +1168,13 @@ def render_holdings_editor(portfolio: dict[str, Any], key_prefix: str = "holding
                 "category",
                 options=["Core", "Aggressive", "Speculative", "Defensive", "Crypto"],
             ),
+            "watch_only": st.column_config.CheckboxColumn("watch_only"),
+            "shares": st.column_config.NumberColumn("shares", min_value=0.0, step=0.000001),
+            "avg_cost": st.column_config.NumberColumn("avg_cost", min_value=0.0, step=0.01),
+            "target_weight": st.column_config.NumberColumn("target_weight", min_value=0.0, max_value=100.0, step=0.5),
+            "buy_below": st.column_config.NumberColumn("buy_below", min_value=0.0, step=0.01),
+            "sell_above": st.column_config.NumberColumn("sell_above", min_value=0.0, step=0.01),
+            "stop_below": st.column_config.NumberColumn("stop_below", min_value=0.0, step=0.01),
             "trade_url": st.column_config.LinkColumn("trade_url"),
             "research_url": st.column_config.LinkColumn("research_url"),
         },
@@ -1105,19 +1344,132 @@ def render_trading_links(portfolio: dict[str, Any]) -> None:
     st.warning("This dashboard does not place trades. Links open external platforms where you remain responsible for order review and execution.")
 
 
-def render_ledger() -> None:
-    st.header("Ledger")
-    st.caption("Planning ledger placeholder for manual buys, trims, exits, notes, and review history.")
-    st.dataframe(
-        pd.DataFrame(
-            [
-                {"Date": datetime.today().strftime("%Y-%m-%d"), "Ticker": "NVDA", "Action": "WATCH BUY", "Amount": "$10.70", "Note": "Below target allocation"},
-                {"Date": datetime.today().strftime("%Y-%m-%d"), "Ticker": "LUNR", "Action": "HOLD", "Amount": "$0.00", "Note": "Speculative sleeve on watch"},
-            ]
-        ),
+def render_exports(portfolio: dict[str, Any], settings: dict[str, Any]) -> None:
+    st.header("Exports")
+    st.caption("Download portfolio data, transaction history, or a polished HTML report that can be printed to PDF.")
+    tickers = tuple(item["ticker"] for item in portfolio["holdings"])
+    transactions = load_transactions()
+    if tickers:
+        histories = fetch_history(tickers, "7d")
+        df = calculate_signals(build_portfolio_frame(portfolio, histories), settings, float(portfolio.get("cash", 0)))
+    else:
+        df = pd.DataFrame()
+
+    portfolio_csv = df.drop(columns=["history"], errors="ignore").to_csv(index=False) if not df.empty else ""
+    transactions_csv = pd.DataFrame(transactions).to_csv(index=False) if transactions else ""
+    report_html = make_report_html(portfolio, df, transactions)
+    c1, c2, c3 = st.columns(3)
+    c1.download_button(
+        "Download Portfolio CSV",
+        data=portfolio_csv,
+        file_name="max_roi_portfolio.csv",
+        mime="text/csv",
+        disabled=df.empty,
         use_container_width=True,
-        hide_index=True,
     )
+    c2.download_button(
+        "Download Ledger CSV",
+        data=transactions_csv,
+        file_name="max_roi_transactions.csv",
+        mime="text/csv",
+        disabled=not transactions,
+        use_container_width=True,
+    )
+    c3.download_button(
+        "Download HTML Report",
+        data=report_html,
+        file_name="max_roi_snapshot.html",
+        mime="text/html",
+        use_container_width=True,
+    )
+    st.info("Open the HTML report in your browser and use Print > Save as PDF for a clean portfolio snapshot.")
+
+
+def apply_transaction_to_portfolio(portfolio: dict[str, Any], transaction: dict[str, Any]) -> dict[str, Any]:
+    action = transaction["action"]
+    ticker = transaction["ticker"].upper()
+    shares = float(transaction.get("shares") or 0)
+    price = float(transaction.get("price") or 0)
+    amount = shares * price
+    if action not in {"Buy", "Sell"} or shares <= 0 or price <= 0:
+        return portfolio
+
+    for item in portfolio["holdings"]:
+        if item["ticker"] != ticker:
+            continue
+        current_shares = float(item.get("shares") or 0)
+        current_cost = float(item.get("avg_cost") or 0)
+        if action == "Buy":
+            new_shares = current_shares + shares
+            total_cost = current_shares * current_cost + amount
+            item["shares"] = new_shares
+            item["avg_cost"] = total_cost / new_shares if new_shares else 0
+            item["watch_only"] = False
+            portfolio["cash"] = max(float(portfolio.get("cash") or 0) - amount, 0)
+        else:
+            item["shares"] = max(current_shares - shares, 0)
+            portfolio["cash"] = float(portfolio.get("cash") or 0) + amount
+        return portfolio
+
+    if action == "Buy":
+        portfolio["holdings"].append(
+            {
+                "ticker": ticker,
+                "name": ticker,
+                "category": "Crypto" if ticker.endswith("-USD") else "Core",
+                "shares": shares,
+                "avg_cost": price,
+                "target_weight": 0,
+                "watch_only": False,
+                "buy_below": 0,
+                "sell_above": 0,
+                "stop_below": 0,
+            }
+        )
+        portfolio["cash"] = max(float(portfolio.get("cash") or 0) - amount, 0)
+    return portfolio
+
+
+def render_ledger(portfolio: dict[str, Any]) -> None:
+    st.header("Transaction Ledger")
+    st.caption("Record buys, sells, notes, and reviews. Buy/sell entries update shares, average cost, and cash.")
+    transactions = load_transactions()
+    tickers = [item["ticker"] for item in portfolio["holdings"]]
+    with st.form("transaction_form"):
+        c1, c2, c3, c4 = st.columns(4)
+        tx_date = c1.date_input("Date", value=datetime.today(), key="ledger_date")
+        ticker = c2.selectbox("Ticker", sorted(set(tickers + ["NEW"])), key="ledger_ticker")
+        custom_ticker = c2.text_input("New ticker", value="", help="Use this when Ticker is NEW.", key="ledger_custom_ticker")
+        action = c3.selectbox("Action", ["Buy", "Sell", "Note", "Review"], key="ledger_action")
+        shares = c4.number_input("Shares / Units", min_value=0.0, value=0.0, step=0.000001, key="ledger_shares")
+        price = st.number_input("Price", min_value=0.0, value=0.0, step=0.01, key="ledger_price")
+        note = st.text_input("Note", value="", key="ledger_note")
+        submitted = st.form_submit_button("Record Transaction", type="primary")
+    if submitted:
+        final_ticker = custom_ticker.strip().upper() if ticker == "NEW" else ticker
+        if not final_ticker:
+            st.error("Enter a ticker before recording the transaction.")
+            return
+        transaction = {
+            "date": tx_date.isoformat(),
+            "ticker": final_ticker,
+            "action": action,
+            "shares": shares,
+            "price": price,
+            "amount": round(shares * price, 2),
+            "note": note,
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        transactions.append(transaction)
+        portfolio = apply_transaction_to_portfolio(portfolio, transaction)
+        save_transactions(transactions)
+        save_json(PORTFOLIO_PATH, normalize_portfolio(portfolio))
+        st.success("Transaction recorded.")
+
+    if transactions:
+        st.dataframe(pd.DataFrame(transactions).sort_values("created_at", ascending=False), use_container_width=True, hide_index=True)
+    else:
+        st.info("No transactions recorded yet.")
 
 
 def render_scout(portfolio: dict[str, Any]) -> None:
@@ -1140,11 +1492,13 @@ def render_scout(portfolio: dict[str, Any]) -> None:
 
 def main() -> None:
     css()
+    if not require_auth():
+        return
     portfolio = normalize_portfolio(load_json(PORTFOLIO_PATH, DEFAULT_PORTFOLIO.copy()))
     settings = BALANCED_PRESET.copy()
     settings.update(load_json(SETTINGS_PATH, {}))
 
-    active = st.tabs(["Home", "Personalize / Setup", "Overview", "New Trade", "Trading Links", "Settings", "Refresh", "Ledger", "Watchlist", "Scout"])
+    active = st.tabs(["Home", "Personalize / Setup", "Overview", "New Trade", "Trading Links", "Alerts", "Ledger", "Exports", "Settings", "Refresh", "Watchlist", "Scout"])
     topbar("Dashboard", datetime.now(), portfolio.get("profile", "Balanced Growth"), portfolio["dashboard_name"])
 
     with active[0]:
@@ -1158,17 +1512,27 @@ def main() -> None:
     with active[4]:
         render_trading_links(portfolio)
     with active[5]:
-        render_settings(settings, portfolio)
+        tickers = tuple(item["ticker"] for item in portfolio["holdings"])
+        if tickers:
+            histories = fetch_history(tickers, "7d")
+            alert_df = calculate_signals(build_portfolio_frame(portfolio, histories), settings, float(portfolio.get("cash", 0)))
+            render_alerts(alert_df)
+        else:
+            st.info("Add assets in Setup to create alerts.")
     with active[6]:
+        render_ledger(portfolio)
+    with active[7]:
+        render_exports(portfolio, settings)
+    with active[8]:
+        render_settings(settings, portfolio)
+    with active[9]:
         if st.button("Refresh Market Data", type="primary"):
             fetch_history.clear()
             st.rerun()
         st.write("Market cache is refreshed every five minutes.")
-    with active[7]:
-        render_ledger()
-    with active[8]:
+    with active[10]:
         render_watchlist(portfolio)
-    with active[9]:
+    with active[11]:
         render_scout(portfolio)
 
 

@@ -18,10 +18,24 @@ Open the **Setup** tab inside the app to edit:
 - shares, average cost, category, and target allocation
 - default stock broker link, crypto exchange link, and research link
 - optional asset-specific trade and research links
+- watchlist-only assets
+- buy-zone, sell-zone, and stop-review alert prices
+
+Use the **Ledger** tab to record buys and sells. Buy/sell entries update shares, average cost, and cash. Use the **Exports** tab to download CSV files or a printable HTML report.
 
 For Yahoo Finance crypto quotes, use symbols such as `BTC-USD`, `ETH-USD`, `ADA-USD`, `XLM-USD`, and `ANKR-USD`.
 
 The app does not place trades. Trading links open external broker or exchange pages for review and execution.
+
+## Optional Password Protection
+
+In Streamlit Cloud, add this secret to require a password before the dashboard opens:
+
+```toml
+DASHBOARD_PASSWORD = "your-password-here"
+```
+
+If `DASHBOARD_PASSWORD` is not set, the app opens normally.
 
 ## Run Locally
 
