@@ -297,25 +297,54 @@ def css() -> None:
             font-weight: 800;
         }
         .stDataFrame { border: 1px solid var(--line); }
-        div[data-baseweb="tab-list"] { gap: 1.8rem; border-bottom: 1px solid var(--line); }
-        button[data-baseweb="tab"],
-        button[data-baseweb="tab"] p,
-        div[role="tablist"] button,
-        div[role="tablist"] button p {
-            color: #f8fafc !important;
-            font-weight: 800 !important;
-            background: #132033 !important;
-            border: 1px solid #31445f !important;
-            border-radius: 6px 6px 0 0 !important;
-            padding: 0.42rem 0.62rem !important;
+        .nav-shell {
+            background: #0b1422;
+            border: 1px solid #26364d;
+            padding: 0.7rem;
+            margin: 0.25rem 0 1rem;
         }
-        button[data-baseweb="tab"][aria-selected="true"],
-        button[data-baseweb="tab"][aria-selected="true"] p,
-        div[role="tab"][aria-selected="true"],
-        div[role="tab"][aria-selected="true"] p {
-            color: var(--green) !important;
-            border-bottom-color: var(--green) !important;
-            background: #18324a !important;
+        .nav-title {
+            color: #ffffff;
+            font-size: 0.72rem;
+            font-weight: 850;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.45rem;
+        }
+        div[role="radiogroup"] {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem 0.55rem;
+            align-items: center;
+        }
+        div[role="radiogroup"] label {
+            background: #142238 !important;
+            border: 1px solid #3b4f6a !important;
+            border-radius: 7px !important;
+            padding: 0.5rem 0.78rem !important;
+            margin: 0 !important;
+            min-height: 40px;
+        }
+        div[role="radiogroup"] label:hover {
+            background: #1b3150 !important;
+            border-color: #60a5fa !important;
+        }
+        div[role="radiogroup"] label p {
+            color: #ffffff !important;
+            font-weight: 850 !important;
+            font-size: 0.9rem !important;
+            line-height: 1.1 !important;
+        }
+        div[role="radiogroup"] label[data-baseweb="radio"] > div:first-child {
+            display: none !important;
+        }
+        div[role="radiogroup"] label:has(input:checked) {
+            background: #12351f !important;
+            border-color: #22c55e !important;
+            box-shadow: inset 0 -3px 0 #22c55e;
+        }
+        div[role="radiogroup"] label:has(input:checked) p {
+            color: #ffffff !important;
         }
         label, .stTextInput label, .stNumberInput label, .stSelectbox label {
             color: #ffffff !important;
@@ -1796,53 +1825,42 @@ def main() -> None:
     settings = BALANCED_PRESET.copy()
     settings.update(load_json(SETTINGS_PATH, {}))
 
-    active = st.tabs(
-        [
-            "Home",
-            "Personalize / Setup",
-            "Overview",
-            "Mobile",
-            "Risk",
-            "Rebalance",
-            "Scenario",
-            "Income",
-            "News & Events",
-            "New Trade",
-            "Trading Links",
-            "Alerts",
-            "Ledger",
-            "Exports",
-            "Settings",
-            "Refresh",
-            "Watchlist",
-            "Scout",
-        ]
-    )
     topbar("Dashboard", datetime.now(), portfolio.get("profile", "Balanced Growth"), portfolio["dashboard_name"])
+    pages = [
+        "Home",
+        "Setup",
+        "Overview",
+        "Trade",
+        "Watchlist",
+        "Alerts",
+        "Risk",
+        "Rebalance",
+        "Scenario",
+        "Income",
+        "News",
+        "Ledger",
+        "Exports",
+        "Links",
+        "Mobile",
+        "Settings",
+        "Refresh",
+        "Scout",
+    ]
+    st.markdown('<div class="nav-shell"><div class="nav-title">Navigation</div>', unsafe_allow_html=True)
+    page = st.radio("Navigation", pages, horizontal=True, label_visibility="collapsed", key="main_navigation")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    with active[0]:
+    if page == "Home":
         render_home(portfolio, settings)
-    with active[1]:
+    elif page == "Setup":
         render_holdings_editor(portfolio, "setup_page", show_identity=True)
-    with active[2]:
+    elif page == "Overview":
         render_overview(portfolio, settings)
-    with active[3]:
-        render_mobile_view(portfolio, settings)
-    with active[4]:
-        render_risk_dashboard(portfolio, settings)
-    with active[5]:
-        render_rebalance_assistant(portfolio, settings)
-    with active[6]:
-        render_scenario_planner(portfolio, settings)
-    with active[7]:
-        render_income_tracker(portfolio, settings)
-    with active[8]:
-        render_news_events(portfolio)
-    with active[9]:
+    elif page == "Trade":
         render_new_trade(portfolio, settings)
-    with active[10]:
-        render_trading_links(portfolio)
-    with active[11]:
+    elif page == "Watchlist":
+        render_watchlist(portfolio)
+    elif page == "Alerts":
         tickers = tuple(item["ticker"] for item in portfolio["holdings"])
         if tickers:
             histories = fetch_history(tickers, "7d")
@@ -1850,20 +1868,32 @@ def main() -> None:
             render_alerts(alert_df)
         else:
             st.info("Add assets in Setup to create alerts.")
-    with active[12]:
+    elif page == "Risk":
+        render_risk_dashboard(portfolio, settings)
+    elif page == "Rebalance":
+        render_rebalance_assistant(portfolio, settings)
+    elif page == "Scenario":
+        render_scenario_planner(portfolio, settings)
+    elif page == "Income":
+        render_income_tracker(portfolio, settings)
+    elif page == "News":
+        render_news_events(portfolio)
+    elif page == "Ledger":
         render_ledger(portfolio)
-    with active[13]:
+    elif page == "Exports":
         render_exports(portfolio, settings)
-    with active[14]:
+    elif page == "Links":
+        render_trading_links(portfolio)
+    elif page == "Mobile":
+        render_mobile_view(portfolio, settings)
+    elif page == "Settings":
         render_settings(settings, portfolio)
-    with active[15]:
+    elif page == "Refresh":
         if st.button("Refresh Market Data", type="primary"):
             fetch_history.clear()
             st.rerun()
         st.write("Market cache is refreshed every five minutes.")
-    with active[16]:
-        render_watchlist(portfolio)
-    with active[17]:
+    elif page == "Scout":
         render_scout(portfolio)
 
 
