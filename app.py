@@ -242,8 +242,24 @@ def css() -> None:
         }
         .stDataFrame { border: 1px solid var(--line); }
         div[data-baseweb="tab-list"] { gap: 1.8rem; border-bottom: 1px solid var(--line); }
-        button[data-baseweb="tab"] { color: var(--text); font-weight: 700; }
-        button[data-baseweb="tab"][aria-selected="true"] { color: var(--green); border-bottom-color: var(--green); }
+        button[data-baseweb="tab"],
+        button[data-baseweb="tab"] p,
+        div[role="tablist"] button,
+        div[role="tablist"] button p {
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+        button[data-baseweb="tab"][aria-selected="true"],
+        button[data-baseweb="tab"][aria-selected="true"] p,
+        div[role="tab"][aria-selected="true"],
+        div[role="tab"][aria-selected="true"] p {
+            color: var(--green) !important;
+            border-bottom-color: var(--green) !important;
+        }
+        label, .stTextInput label, .stNumberInput label, .stSelectbox label {
+            color: #ffffff !important;
+            font-weight: 760 !important;
+        }
         .setting-grid {
             display: grid;
             grid-template-columns: repeat(4, minmax(120px, 1fr));
@@ -324,6 +340,14 @@ def css() -> None:
             min-height: 86px;
         }
         .action-link small { color: var(--muted); display: block; margin-top: 0.35rem; }
+        .setup-callout {
+            border: 1px solid rgba(34, 197, 94, 0.38);
+            background: rgba(34, 197, 94, 0.09);
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .setup-callout h3 { margin-top: 0; color: #ffffff; }
+        .setup-callout li, .setup-callout p { color: #e5eef9; }
         @media (max-width: 900px) {
             .cover { grid-template-columns: 1fr; }
             .ticker-tape, .link-grid, .setting-grid { grid-template-columns: 1fr 1fr; }
@@ -836,6 +860,20 @@ def render_home(portfolio: dict[str, Any], settings: dict[str, Any]) -> None:
     c1.metric("Cash Available", money(float(portfolio.get("cash", 0))), "editable in Setup")
     c2.metric("Risk Mode", settings.get("risk_mode", "Auto"), portfolio.get("profile", "Balanced Growth"))
     c3.metric("Universe", f"{len(portfolio['holdings'])} assets", "stocks, ETFs, crypto")
+    st.markdown(
+        """
+        <div class="setup-callout">
+            <h3>Personalize This Dashboard</h3>
+            <p>Use the <b>Personalize / Setup</b> tab at the top to add or remove stocks and crypto, update shares, adjust average cost, change cash available, and set your own broker or crypto exchange links.</p>
+            <ul>
+                <li>Add a new stock or crypto by inserting a row in the holdings table.</li>
+                <li>Use Yahoo Finance crypto symbols like <b>BTC-USD</b>, <b>ETH-USD</b>, <b>ADA-USD</b>, <b>XLM-USD</b>, and <b>ANKR-USD</b>.</li>
+                <li>Set category, shares, average cost, and target allocation, then click <b>Save Holdings</b>.</li>
+            </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_new_trade(portfolio: dict[str, Any], settings: dict[str, Any]) -> None:
@@ -878,8 +916,13 @@ def render_portfolio_identity(portfolio: dict[str, Any], key_prefix: str) -> Non
 
 
 def render_holdings_editor(portfolio: dict[str, Any], key_prefix: str = "holdings", show_identity: bool = False) -> None:
-    st.header("Setup" if show_identity else "Holdings")
+    st.header("Personalize This Dashboard" if show_identity else "Holdings")
     st.caption("Make this dashboard yours by editing the account name, links, stocks, crypto, shares, cost basis, and target weights.")
+    if show_identity:
+        st.info(
+            "To add a new stock or crypto, scroll to the holdings table below and use the blank row at the bottom. "
+            "Fill in ticker, name, category, shares, average cost, and target weight, then save."
+        )
     if show_identity:
         render_portfolio_identity(portfolio, key_prefix)
         st.divider()
@@ -1101,17 +1144,17 @@ def main() -> None:
     settings = BALANCED_PRESET.copy()
     settings.update(load_json(SETTINGS_PATH, {}))
 
-    active = st.tabs(["Home", "Overview", "New Trade", "Setup", "Trading Links", "Settings", "Refresh", "Ledger", "Watchlist", "Scout"])
+    active = st.tabs(["Home", "Personalize / Setup", "Overview", "New Trade", "Trading Links", "Settings", "Refresh", "Ledger", "Watchlist", "Scout"])
     topbar("Dashboard", datetime.now(), portfolio.get("profile", "Balanced Growth"), portfolio["dashboard_name"])
 
     with active[0]:
         render_home(portfolio, settings)
     with active[1]:
-        render_overview(portfolio, settings)
-    with active[2]:
-        render_new_trade(portfolio, settings)
-    with active[3]:
         render_holdings_editor(portfolio, "setup_page", show_identity=True)
+    with active[2]:
+        render_overview(portfolio, settings)
+    with active[3]:
+        render_new_trade(portfolio, settings)
     with active[4]:
         render_trading_links(portfolio)
     with active[5]:
