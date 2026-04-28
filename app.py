@@ -647,13 +647,14 @@ def render_new_trade(portfolio: dict[str, Any], settings: dict[str, Any]) -> Non
     st.info(f"Estimated shares: {shares:,.6f}. This dashboard records planning signals only and does not place trades.")
 
 
-def render_holdings_editor(portfolio: dict[str, Any]) -> None:
+def render_holdings_editor(portfolio: dict[str, Any], key_prefix: str = "holdings") -> None:
     st.header("Holdings")
     st.caption("Edit the portfolio universe, including crypto and penny/speculative names.")
     edited = st.data_editor(
         pd.DataFrame(portfolio["holdings"]),
         use_container_width=True,
         num_rows="dynamic",
+        key=f"{key_prefix}_editor",
         column_config={
             "category": st.column_config.SelectboxColumn(
                 "category",
@@ -661,8 +662,14 @@ def render_holdings_editor(portfolio: dict[str, Any]) -> None:
             )
         },
     )
-    cash = st.number_input("Cash available", min_value=0.0, value=float(portfolio.get("cash", 0)), step=1.0)
-    if st.button("Save Holdings", type="primary"):
+    cash = st.number_input(
+        "Cash available",
+        min_value=0.0,
+        value=float(portfolio.get("cash", 0)),
+        step=1.0,
+        key=f"{key_prefix}_cash",
+    )
+    if st.button("Save Holdings", type="primary", key=f"{key_prefix}_save"):
         portfolio["holdings"] = edited.to_dict("records")
         portfolio["cash"] = cash
         save_json(PORTFOLIO_PATH, portfolio)
@@ -744,7 +751,7 @@ def render_settings(settings: dict[str, Any], portfolio: dict[str, Any]) -> None
         settings["risk_mode"] = st.selectbox("Risk Mode", ["Auto", "Risk On", "Risk Off"], index=["Auto", "Risk On", "Risk Off"].index(settings.get("risk_mode", "Auto")))
         st.write("Data source: Yahoo Finance chart endpoint, with sample-price fallback.")
     with tabs[4]:
-        render_holdings_editor(portfolio)
+        render_holdings_editor(portfolio, "settings_holdings")
     with tabs[5]:
         st.json({"portfolio": portfolio, "settings": settings})
 
@@ -819,7 +826,7 @@ def main() -> None:
             st.rerun()
         st.write("Market cache is refreshed every five minutes.")
     with active[4]:
-        render_holdings_editor(portfolio)
+        render_holdings_editor(portfolio, "holdings_page")
     with active[5]:
         render_ledger()
     with active[6]:
