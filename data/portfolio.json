@@ -1,0 +1,23 @@
+{
+  "cash": 299.62,
+  "profile": "Balanced Growth",
+  "holdings": [
+    {"ticker": "NVDA", "name": "NVIDIA", "category": "Core", "shares": 0.335, "avg_cost": 189.45, "target_weight": 13.0},
+    {"ticker": "GOOGL", "name": "Alphabet", "category": "Core", "shares": 0.175, "avg_cost": 168.20, "target_weight": 11.0},
+    {"ticker": "ETN", "name": "Eaton", "category": "Core", "shares": 0.105, "avg_cost": 319.95, "target_weight": 10.0},
+    {"ticker": "AMD", "name": "Advanced Micro Devices", "category": "Aggressive", "shares": 0.12, "avg_cost": 248.83, "target_weight": 8.0},
+    {"ticker": "PLTR", "name": "Palantir", "category": "Aggressive", "shares": 0.27, "avg_cost": 139.41, "target_weight": 8.0},
+    {"ticker": "VRT", "name": "Vertiv", "category": "Aggressive", "shares": 0.085, "avg_cost": 279.70, "target_weight": 8.0},
+    {"ticker": "XLV", "name": "Health Care Select Sector SPDR", "category": "Defensive", "shares": 0.36, "avg_cost": 145.20, "target_weight": 8.0},
+    {"ticker": "RKLB", "name": "Rocket Lab", "category": "Speculative", "shares": 0.42, "avg_cost": 67.05, "target_weight": 8.0},
+    {"ticker": "BTC-USD", "name": "Bitcoin", "category": "Crypto", "shares": 0.000255, "avg_cost": 67407.00, "target_weight": 6.0},
+    {"ticker": "CAT", "name": "Caterpillar", "category": "Core", "shares": 0.055, "avg_cost": 807.96, "target_weight": 6.0},
+    {"ticker": "CEG", "name": "Constellation Energy", "category": "Core", "shares": 0.07, "avg_cost": 296.66, "target_weight": 6.0},
+    {"ticker": "LUNR", "name": "Intuitive Machines", "category": "Speculative", "shares": 0.75, "avg_cost": 27.17, "target_weight": 4.0},
+    {"ticker": "ETH-USD", "name": "Ethereum", "category": "Crypto", "shares": 0.0105, "avg_cost": 2141.57, "target_weight": 4.0},
+    {"ticker": "ADA-USD", "name": "Cardano", "category": "Crypto", "shares": 34.0, "avg_cost": 0.62, "target_weight": 3.0},
+    {"ticker": "XLM-USD", "name": "Stellar Lumens", "category": "Crypto", "shares": 85.0, "avg_cost": 0.13, "target_weight": 2.0},
+    {"ticker": "ANKR-USD", "name": "Ankr", "category": "Crypto", "shares": 640.0, "avg_cost": 0.028, "target_weight": 2.0},
+    {"ticker": "BFGFF", "name": "Bullfrog AI Holdings", "category": "Speculative", "shares": 90.0, "avg_cost": 0.18, "target_weight": 1.0}
+  ]
+}

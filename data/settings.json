@@ -1,0 +1,17 @@
+{
+  "risk_mode": "Auto",
+  "minimum_cash_reserve": 25.0,
+  "absolute_min_trade": 5.0,
+  "max_trade_pct_available_cash": 0.75,
+  "allocation_tolerance_pct": 1.0,
+  "starter_fill_pct_gap": 0.75,
+  "owned_add_fill_pct_gap": 0.60,
+  "watch_buy_scaler": 1.00,
+  "trim_profit_pct": 12.0,
+  "hard_exit_loss_pct": -8.0,
+  "tactical_exit_loss_pct": -6.0,
+  "tactical_exit_required_signals": 3,
+  "tactical_exit_rsi_max": 45,
+  "tactical_exit_range_position_max": 35,
+  "tactical_exit_off_5d_high_min_pct": 8
+}
