@@ -422,9 +422,11 @@ def build_portfolio_frame(portfolio: dict[str, Any], histories: dict[str, pd.Dat
                 "Current": current,
                 "Avg Cost": avg_cost,
                 "Shares": shares,
+                "shares": shares,
                 "Value": value,
                 "Gain $": gain,
                 "Gain %": gain_pct,
+                "gain_pct": gain_pct,
                 "Target %": float(item["target_weight"]),
                 "Daily %": daily_change_pct(hist),
                 "range_position": range_position(hist),
@@ -799,7 +801,8 @@ def render_scout(portfolio: dict[str, Any]) -> None:
 def main() -> None:
     css()
     portfolio = load_json(PORTFOLIO_PATH, {"cash": 0, "profile": "Balanced Growth", "holdings": []})
-    settings = load_json(SETTINGS_PATH, BALANCED_PRESET.copy())
+    settings = BALANCED_PRESET.copy()
+    settings.update(load_json(SETTINGS_PATH, {}))
 
     active = st.tabs(["Overview", "New Trade", "Settings", "Refresh", "Holdings", "Ledger", "Watchlist", "Scout"])
     topbar("Overview", datetime.now(), portfolio.get("profile", "Balanced Growth"))
