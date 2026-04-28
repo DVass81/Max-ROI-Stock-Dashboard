@@ -8,6 +8,21 @@ A professional Streamlit portfolio dashboard for stocks, penny stocks, and crypt
 - Crypto: `BTC-USD`, `ETH-USD`, `ADA-USD`, `XLM-USD`, `ANKR-USD`
 - Penny/speculative names: `LUNR`, `BFGFF`
 
+## Make It Your Own
+
+Open the **Setup** tab inside the app to edit:
+
+- dashboard name, owner name, and cover page tagline
+- cash available
+- stocks, ETFs, penny stocks, and crypto tickers
+- shares, average cost, category, and target allocation
+- default stock broker link, crypto exchange link, and research link
+- optional asset-specific trade and research links
+
+For Yahoo Finance crypto quotes, use symbols such as `BTC-USD`, `ETH-USD`, `ADA-USD`, `XLM-USD`, and `ANKR-USD`.
+
+The app does not place trades. Trading links open external broker or exchange pages for review and execution.
+
 ## Run Locally
 
 ```powershell

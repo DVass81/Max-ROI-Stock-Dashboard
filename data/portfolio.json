@@ -1,6 +1,12 @@
 {
+  "dashboard_name": "Max ROI",
+  "owner_name": "Investor",
+  "tagline": "A focused command center for stocks, crypto, risk, and allocation discipline.",
   "cash": 299.62,
   "profile": "Balanced Growth",
+  "stock_broker_url": "https://robinhood.com/",
+  "crypto_broker_url": "https://www.coinbase.com/",
+  "research_url": "https://finance.yahoo.com/",
   "holdings": [
     {"ticker": "NVDA", "name": "NVIDIA", "category": "Core", "shares": 0.335, "avg_cost": 189.45, "target_weight": 13.0},
     {"ticker": "GOOGL", "name": "Alphabet", "category": "Core", "shares": 0.175, "avg_cost": 168.20, "target_weight": 11.0},

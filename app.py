@@ -24,6 +24,18 @@ DATA_DIR = APP_DIR / "data"
 PORTFOLIO_PATH = DATA_DIR / "portfolio.json"
 SETTINGS_PATH = DATA_DIR / "settings.json"
 
+DEFAULT_PORTFOLIO = {
+    "dashboard_name": "Max ROI",
+    "owner_name": "Investor",
+    "tagline": "A focused command center for stocks, crypto, risk, and allocation discipline.",
+    "cash": 0.0,
+    "profile": "Balanced Growth",
+    "stock_broker_url": "https://robinhood.com/",
+    "crypto_broker_url": "https://www.coinbase.com/",
+    "research_url": "https://finance.yahoo.com/",
+    "holdings": [],
+}
+
 BALANCED_PRESET = {
     "risk_mode": "Auto",
     "minimum_cash_reserve": 25.0,
@@ -244,10 +256,139 @@ def css() -> None:
         }
         .setting-card .label { color: var(--text); font-weight: 760; font-size: 0.82rem; }
         .setting-card .value { font-size: 2rem; margin-top: 0.5rem; }
+        .cover {
+            min-height: 420px;
+            display: grid;
+            grid-template-columns: minmax(300px, 1.1fr) minmax(320px, 0.9fr);
+            gap: 1.2rem;
+            align-items: stretch;
+            margin-bottom: 1rem;
+        }
+        .cover-hero {
+            background:
+                linear-gradient(135deg, rgba(5, 11, 18, 0.96), rgba(12, 23, 38, 0.84)),
+                radial-gradient(circle at 78% 18%, rgba(34, 197, 94, 0.23), transparent 34%),
+                radial-gradient(circle at 18% 76%, rgba(96, 165, 250, 0.18), transparent 30%);
+            border: 1px solid var(--line);
+            padding: 2.2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .cover-title {
+            font-size: clamp(2.3rem, 4.8vw, 5.4rem);
+            line-height: 0.95;
+            margin: 0;
+            font-weight: 900;
+        }
+        .cover-tagline {
+            color: #b8c6d8;
+            font-size: 1.08rem;
+            max-width: 760px;
+            margin-top: 1rem;
+        }
+        .ticker-tape {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.65rem;
+            margin-top: 1.8rem;
+        }
+        .ticker-card {
+            border: 1px solid var(--line);
+            background: rgba(7, 15, 26, 0.76);
+            padding: 0.75rem;
+            min-height: 82px;
+        }
+        .ticker-card b { display: block; font-size: 0.95rem; }
+        .ticker-card span { color: var(--muted); font-size: 0.74rem; }
+        .cover-panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .link-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(160px, 1fr));
+            gap: 0.7rem;
+        }
+        .action-link {
+            display: block;
+            border: 1px solid var(--line);
+            background: #091322;
+            padding: 0.85rem;
+            color: var(--text) !important;
+            text-decoration: none !important;
+            min-height: 86px;
+        }
+        .action-link small { color: var(--muted); display: block; margin-top: 0.35rem; }
+        @media (max-width: 900px) {
+            .cover { grid-template-columns: 1fr; }
+            .ticker-tape, .link-grid, .setting-grid { grid-template-columns: 1fr 1fr; }
+        }
         </style>
         """,
         unsafe_allow_html=True,
     )
+
+
+def normalize_url(value: object, fallback: str = "") -> str:
+    url = str(value or "").strip()
+    if not url:
+        return fallback
+    if url.startswith(("http://", "https://")):
+        return url
+    return f"https://{url}"
+
+
+def normalize_portfolio(portfolio: dict[str, Any]) -> dict[str, Any]:
+    normalized = DEFAULT_PORTFOLIO.copy()
+    if isinstance(portfolio, dict):
+        normalized.update(portfolio)
+    normalized["cash"] = float(normalized.get("cash") or 0)
+    normalized["dashboard_name"] = str(normalized.get("dashboard_name") or "Max ROI").strip()
+    normalized["owner_name"] = str(normalized.get("owner_name") or "Investor").strip()
+    normalized["tagline"] = str(normalized.get("tagline") or DEFAULT_PORTFOLIO["tagline"]).strip()
+    normalized["stock_broker_url"] = normalize_url(normalized.get("stock_broker_url"), DEFAULT_PORTFOLIO["stock_broker_url"])
+    normalized["crypto_broker_url"] = normalize_url(normalized.get("crypto_broker_url"), DEFAULT_PORTFOLIO["crypto_broker_url"])
+    normalized["research_url"] = normalize_url(normalized.get("research_url"), DEFAULT_PORTFOLIO["research_url"])
+    holdings = []
+    for item in normalized.get("holdings", []):
+        if not isinstance(item, dict):
+            continue
+        ticker = str(item.get("ticker") or "").strip().upper()
+        if not ticker:
+            continue
+        category = str(item.get("category") or "Core").strip()
+        default_trade_url = normalized["crypto_broker_url"] if category == "Crypto" or ticker.endswith("-USD") else normalized["stock_broker_url"]
+        holdings.append(
+            {
+                "ticker": ticker,
+                "name": str(item.get("name") or ticker).strip(),
+                "category": category,
+                "shares": float(item.get("shares") or 0),
+                "avg_cost": float(item.get("avg_cost") or 0),
+                "target_weight": float(item.get("target_weight") or 0),
+                "trade_url": normalize_url(item.get("trade_url"), default_trade_url),
+                "research_url": normalize_url(item.get("research_url"), yahoo_quote_url(ticker)),
+            }
+        )
+    normalized["holdings"] = holdings
+    return normalized
+
+
+def yahoo_quote_url(ticker: str) -> str:
+    return f"https://finance.yahoo.com/quote/{ticker}"
+
+
+def asset_type_label(ticker: str, category: str) -> str:
+    if category == "Crypto" or ticker.endswith("-USD"):
+        return "Crypto"
+    if ticker.startswith("^"):
+        return "Index"
+    return "Stock"
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -419,6 +560,7 @@ def build_portfolio_frame(portfolio: dict[str, Any], histories: dict[str, pd.Dat
                 "Ticker": ticker,
                 "Name": item["name"],
                 "Category": item["category"],
+                "Type": asset_type_label(ticker, item["category"]),
                 "Current": current,
                 "Avg Cost": avg_cost,
                 "Shares": shares,
@@ -431,9 +573,13 @@ def build_portfolio_frame(portfolio: dict[str, Any], histories: dict[str, pd.Dat
                 "Daily %": daily_change_pct(hist),
                 "range_position": range_position(hist),
                 "history": hist,
+                "Trade Link": item.get("trade_url") or portfolio.get("stock_broker_url", ""),
+                "Research Link": item.get("research_url") or yahoo_quote_url(ticker),
             }
         )
     df = pd.DataFrame(rows)
+    if df.empty:
+        return pd.DataFrame()
     portfolio_value = float(df["Value"].sum()) + float(portfolio.get("cash", 0))
     df["portfolio_value"] = portfolio_value
     df["Allocation %"] = (df["Value"] / portfolio_value) * 100 if portfolio_value else 0
@@ -443,13 +589,13 @@ def build_portfolio_frame(portfolio: dict[str, Any], histories: dict[str, pd.Dat
     return df
 
 
-def topbar(active: str, refreshed: datetime, profile: str) -> None:
+def topbar(active: str, refreshed: datetime, profile: str, dashboard_name: str) -> None:
     st.markdown(
         f"""
         <div class="topbar">
             <div class="brand">
                 <div class="brand-bars"><span></span><span></span><span></span><span></span></div>
-                <div>Max ROI</div>
+                <div>{dashboard_name}</div>
             </div>
             <div></div>
             <div class="top-actions"><span class="pill green">{active}</span></div>
@@ -466,6 +612,9 @@ def topbar(active: str, refreshed: datetime, profile: str) -> None:
 
 
 def render_metrics(df: pd.DataFrame, cash: float) -> None:
+    if df.empty:
+        st.info("Add holdings in Setup to start building the dashboard.")
+        return
     portfolio_value = float(df["Value"].sum()) + cash
     total_gain = float(df["Gain $"].sum())
     total_cost = float((df["Shares"] * df["Avg Cost"]).sum())
@@ -482,6 +631,9 @@ def render_metrics(df: pd.DataFrame, cash: float) -> None:
 
 
 def render_holdings_table(df: pd.DataFrame) -> None:
+    if df.empty:
+        st.info("No holdings are configured yet.")
+        return
     table = df.copy()
     table["Current"] = table["Current"].map(money)
     table["Avg Cost"] = table["Avg Cost"].map(money)
@@ -508,6 +660,8 @@ def render_holdings_table(df: pd.DataFrame) -> None:
             "Signal",
             "Score",
             "Action $",
+            "Research Link",
+            "Trade Link",
         ]
     ]
     st.dataframe(
@@ -516,6 +670,8 @@ def render_holdings_table(df: pd.DataFrame) -> None:
         hide_index=True,
         column_config={
             "Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%d"),
+            "Research Link": st.column_config.LinkColumn("Research"),
+            "Trade Link": st.column_config.LinkColumn("Trade"),
         },
     )
 
@@ -615,6 +771,9 @@ def render_allocation(df: pd.DataFrame, cash: float) -> None:
 
 def render_overview(portfolio: dict[str, Any], settings: dict[str, Any]) -> None:
     tickers = tuple(item["ticker"] for item in portfolio["holdings"])
+    if not tickers:
+        st.info("Use Setup to add stocks, crypto, ETFs, or penny stocks.")
+        return
     histories = fetch_history(tickers, "7d")
     cash = float(portfolio.get("cash", 0))
     df = build_portfolio_frame(portfolio, histories)
@@ -626,10 +785,66 @@ def render_overview(portfolio: dict[str, Any], settings: dict[str, Any]) -> None
     render_allocation(df, cash)
 
 
+def render_home(portfolio: dict[str, Any], settings: dict[str, Any]) -> None:
+    tickers = tuple(item["ticker"] for item in portfolio["holdings"])
+    histories = fetch_history(tickers[:8], "7d") if tickers else {}
+    df = pd.DataFrame()
+    if tickers:
+        all_histories = fetch_history(tickers, "7d")
+        df = calculate_signals(build_portfolio_frame(portfolio, all_histories), settings, float(portfolio.get("cash", 0)))
+    portfolio_value = float(df["Value"].sum()) + float(portfolio.get("cash", 0)) if not df.empty else float(portfolio.get("cash", 0))
+    buy_count = int((df["Signal"] == "WATCH BUY").sum()) if not df.empty else 0
+    trim_count = int(df["Signal"].isin(["TRIM", "EXIT"]).sum()) if not df.empty else 0
+    best = df.sort_values("Gain %", ascending=False).iloc[0]["Ticker"] if not df.empty else "Add assets"
+    tape_html = ""
+    for item in portfolio["holdings"][:4]:
+        ticker = item["ticker"]
+        hist = histories.get(ticker, pd.DataFrame())
+        tape_html += (
+            f"<div class='ticker-card'><b>{ticker}</b>"
+            f"<span>{money(latest_price(hist, ticker))} | {pct(daily_change_pct(hist))}</span></div>"
+        )
+    if not tape_html:
+        tape_html = "<div class='ticker-card'><b>Setup</b><span>Add your first tracked assets</span></div>"
+    st.markdown(
+        f"""
+        <div class="cover">
+            <section class="cover-hero">
+                <div>
+                    <span class="pill green">{portfolio.get('profile', 'Balanced Growth')}</span>
+                    <h1 class="cover-title">{portfolio['dashboard_name']}</h1>
+                    <p class="cover-tagline">{portfolio['tagline']}</p>
+                </div>
+                <div class="ticker-tape">{tape_html}</div>
+            </section>
+            <aside class="cover-panel">
+                <div>
+                    <h3>{portfolio['owner_name']} Portfolio Brief</h3>
+                    <div class="opportunity" style="grid-template-columns:1fr auto;"><b>Total Value</b><span>{money(portfolio_value)}</span></div>
+                    <div class="opportunity" style="grid-template-columns:1fr auto;"><b>Tracked Assets</b><span>{len(portfolio['holdings'])}</span></div>
+                    <div class="opportunity" style="grid-template-columns:1fr auto;"><b>Watch Buys</b><span>{buy_count}</span></div>
+                    <div class="opportunity" style="grid-template-columns:1fr auto;"><b>Trim / Exit</b><span>{trim_count}</span></div>
+                    <div class="opportunity" style="grid-template-columns:1fr auto;"><b>Top Performer</b><span>{best}</span></div>
+                </div>
+                <p class="small-muted">Dashboard signals are planning aids only. Review risk, liquidity, and your brokerage order screen before making any trade.</p>
+            </aside>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Cash Available", money(float(portfolio.get("cash", 0))), "editable in Setup")
+    c2.metric("Risk Mode", settings.get("risk_mode", "Auto"), portfolio.get("profile", "Balanced Growth"))
+    c3.metric("Universe", f"{len(portfolio['holdings'])} assets", "stocks, ETFs, crypto")
+
+
 def render_new_trade(portfolio: dict[str, Any], settings: dict[str, Any]) -> None:
     st.header("New Trade")
     st.caption("Position sizing follows the active preset and current target allocation gap.")
     tickers = [item["ticker"] for item in portfolio["holdings"]]
+    if not tickers:
+        st.info("Add at least one tracked asset in Setup before planning a trade.")
+        return
     selected = st.selectbox("Ticker", tickers)
     item = next(row for row in portfolio["holdings"] if row["ticker"] == selected)
     histories = fetch_history((selected,), "7d")
@@ -645,11 +860,29 @@ def render_new_trade(portfolio: dict[str, Any], settings: dict[str, Any]) -> Non
     trade_amount = st.number_input("Planned trade amount", min_value=0.0, max_value=max(cash, 1.0), value=round(min(max_trade, cash), 2), step=1.0)
     shares = trade_amount / price if price else 0
     st.info(f"Estimated shares: {shares:,.6f}. This dashboard records planning signals only and does not place trades.")
+    col1, col2, col3 = st.columns(3)
+    col1.link_button("Open Trade Platform", item.get("trade_url") or portfolio.get("stock_broker_url", "https://robinhood.com/"), use_container_width=True)
+    col2.link_button("Open Yahoo Research", item.get("research_url") or yahoo_quote_url(selected), use_container_width=True)
+    col3.link_button("Open Broker Home", portfolio.get("crypto_broker_url") if item.get("category") == "Crypto" else portfolio.get("stock_broker_url"), use_container_width=True)
 
 
-def render_holdings_editor(portfolio: dict[str, Any], key_prefix: str = "holdings") -> None:
-    st.header("Holdings")
-    st.caption("Edit the portfolio universe, including crypto and penny/speculative names.")
+def render_portfolio_identity(portfolio: dict[str, Any], key_prefix: str) -> None:
+    st.subheader("Dashboard Identity")
+    portfolio["dashboard_name"] = st.text_input("Dashboard name", value=portfolio["dashboard_name"], key=f"{key_prefix}_dashboard_name")
+    portfolio["owner_name"] = st.text_input("Owner or group name", value=portfolio["owner_name"], key=f"{key_prefix}_owner_name")
+    portfolio["tagline"] = st.text_input("Cover page tagline", value=portfolio["tagline"], key=f"{key_prefix}_tagline")
+    col1, col2, col3 = st.columns(3)
+    portfolio["stock_broker_url"] = col1.text_input("Default stock/ETF trade link", value=portfolio["stock_broker_url"], key=f"{key_prefix}_stock_url")
+    portfolio["crypto_broker_url"] = col2.text_input("Default crypto trade link", value=portfolio["crypto_broker_url"], key=f"{key_prefix}_crypto_url")
+    portfolio["research_url"] = col3.text_input("Default research home", value=portfolio["research_url"], key=f"{key_prefix}_research_url")
+
+
+def render_holdings_editor(portfolio: dict[str, Any], key_prefix: str = "holdings", show_identity: bool = False) -> None:
+    st.header("Setup" if show_identity else "Holdings")
+    st.caption("Make this dashboard yours by editing the account name, links, stocks, crypto, shares, cost basis, and target weights.")
+    if show_identity:
+        render_portfolio_identity(portfolio, key_prefix)
+        st.divider()
     edited = st.data_editor(
         pd.DataFrame(portfolio["holdings"]),
         use_container_width=True,
@@ -659,7 +892,9 @@ def render_holdings_editor(portfolio: dict[str, Any], key_prefix: str = "holding
             "category": st.column_config.SelectboxColumn(
                 "category",
                 options=["Core", "Aggressive", "Speculative", "Defensive", "Crypto"],
-            )
+            ),
+            "trade_url": st.column_config.LinkColumn("trade_url"),
+            "research_url": st.column_config.LinkColumn("research_url"),
         },
     )
     cash = st.number_input(
@@ -672,6 +907,7 @@ def render_holdings_editor(portfolio: dict[str, Any], key_prefix: str = "holding
     if st.button("Save Holdings", type="primary", key=f"{key_prefix}_save"):
         portfolio["holdings"] = edited.to_dict("records")
         portfolio["cash"] = cash
+        portfolio = normalize_portfolio(portfolio)
         save_json(PORTFOLIO_PATH, portfolio)
         st.success("Holdings saved.")
 
@@ -696,7 +932,7 @@ def preset_card(title: str, subtitle: str, preset: dict[str, Any], button_label:
 def render_settings(settings: dict[str, Any], portfolio: dict[str, Any]) -> None:
     st.header("Settings")
     st.caption("Manage the live strategy controls from this page.")
-    tabs = st.tabs(["Strategy", "Buy & Add Logic", "Trim & Exit Logic", "System", "Watchlist & Targets", "Raw JSON"])
+    tabs = st.tabs(["Strategy", "Buy & Add Logic", "Trim & Exit Logic", "System", "Setup", "Raw JSON"])
     with tabs[0]:
         st.subheader("Live Strategy Controls")
         st.info("The signal generator reads the buy/add, trim, and exit controls from this page.")
@@ -751,7 +987,7 @@ def render_settings(settings: dict[str, Any], portfolio: dict[str, Any]) -> None
         settings["risk_mode"] = st.selectbox("Risk Mode", ["Auto", "Risk On", "Risk Off"], index=["Auto", "Risk On", "Risk Off"].index(settings.get("risk_mode", "Auto")))
         st.write("Data source: Yahoo Finance chart endpoint, with sample-price fallback.")
     with tabs[4]:
-        render_holdings_editor(portfolio, "settings_holdings")
+        render_holdings_editor(portfolio, "settings_holdings", show_identity=True)
     with tabs[5]:
         st.json({"portfolio": portfolio, "settings": settings})
 
@@ -763,6 +999,9 @@ def render_settings(settings: dict[str, Any], portfolio: dict[str, Any]) -> None
 
 def render_watchlist(portfolio: dict[str, Any]) -> None:
     st.header("Watchlist")
+    if not portfolio["holdings"]:
+        st.info("Add assets in Setup to build a watchlist.")
+        return
     rows = []
     histories = fetch_history(tuple(item["ticker"] for item in portfolio["holdings"]), "7d")
     for item in portfolio["holdings"]:
@@ -775,9 +1014,52 @@ def render_watchlist(portfolio: dict[str, Any]) -> None:
                 "Price": money(latest_price(hist, item["ticker"])),
                 "Daily": pct(daily_change_pct(hist)),
                 "Target": f"{item['target_weight']:.1f}%",
+                "Research": item.get("research_url") or yahoo_quote_url(item["ticker"]),
+                "Trade": item.get("trade_url") or portfolio.get("stock_broker_url"),
             }
         )
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.dataframe(
+        pd.DataFrame(rows),
+        use_container_width=True,
+        hide_index=True,
+        column_config={"Research": st.column_config.LinkColumn("Research"), "Trade": st.column_config.LinkColumn("Trade")},
+    )
+
+
+def render_trading_links(portfolio: dict[str, Any]) -> None:
+    st.header("Trading Links")
+    st.caption("Quick links are editable in Setup. Use your own preferred broker or exchange links.")
+    st.markdown(
+        f"""
+        <div class="link-grid">
+            <a class="action-link" href="{portfolio['stock_broker_url']}" target="_blank"><b>Stocks / ETFs</b><small>Default brokerage link</small></a>
+            <a class="action-link" href="{portfolio['crypto_broker_url']}" target="_blank"><b>Crypto</b><small>Default crypto exchange link</small></a>
+            <a class="action-link" href="{portfolio['research_url']}" target="_blank"><b>Research</b><small>Market research home</small></a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    rows = []
+    for item in portfolio["holdings"]:
+        rows.append(
+            {
+                "Ticker": item["ticker"],
+                "Name": item["name"],
+                "Type": asset_type_label(item["ticker"], item["category"]),
+                "Research": item.get("research_url") or yahoo_quote_url(item["ticker"]),
+                "Trade": item.get("trade_url") or portfolio.get("stock_broker_url"),
+            }
+        )
+    if rows:
+        st.dataframe(
+            pd.DataFrame(rows),
+            use_container_width=True,
+            hide_index=True,
+            column_config={"Research": st.column_config.LinkColumn("Research"), "Trade": st.column_config.LinkColumn("Trade")},
+        )
+    else:
+        st.info("No tracked assets yet. Add rows in Setup to create asset-specific trading links.")
+    st.warning("This dashboard does not place trades. Links open external platforms where you remain responsible for order review and execution.")
 
 
 def render_ledger() -> None:
@@ -803,35 +1085,47 @@ def render_scout(portfolio: dict[str, Any]) -> None:
     st.markdown(f"**Crypto sleeve:** {', '.join(crypto)}")
     st.markdown(f"**Speculative and penny sleeve:** {', '.join(speculative)}")
     st.info("I would add an alerts layer next: price bands, target allocation breaches, and a morning risk summary.")
+    st.markdown("### Recommended Next Upgrades")
+    st.markdown(
+        "- Add per-position alert bands for buy zones, trim zones, and stop review levels.\n"
+        "- Add a transaction ledger so cost basis updates from buys and sells instead of manual editing.\n"
+        "- Add separate watchlist-only assets with target entry prices.\n"
+        "- Add an export button for a weekly portfolio PDF or CSV snapshot.\n"
+        "- Add optional login protection before sharing a public Streamlit link."
+    )
 
 
 def main() -> None:
     css()
-    portfolio = load_json(PORTFOLIO_PATH, {"cash": 0, "profile": "Balanced Growth", "holdings": []})
+    portfolio = normalize_portfolio(load_json(PORTFOLIO_PATH, DEFAULT_PORTFOLIO.copy()))
     settings = BALANCED_PRESET.copy()
     settings.update(load_json(SETTINGS_PATH, {}))
 
-    active = st.tabs(["Overview", "New Trade", "Settings", "Refresh", "Holdings", "Ledger", "Watchlist", "Scout"])
-    topbar("Overview", datetime.now(), portfolio.get("profile", "Balanced Growth"))
+    active = st.tabs(["Home", "Overview", "New Trade", "Setup", "Trading Links", "Settings", "Refresh", "Ledger", "Watchlist", "Scout"])
+    topbar("Dashboard", datetime.now(), portfolio.get("profile", "Balanced Growth"), portfolio["dashboard_name"])
 
     with active[0]:
-        render_overview(portfolio, settings)
+        render_home(portfolio, settings)
     with active[1]:
-        render_new_trade(portfolio, settings)
+        render_overview(portfolio, settings)
     with active[2]:
-        render_settings(settings, portfolio)
+        render_new_trade(portfolio, settings)
     with active[3]:
+        render_holdings_editor(portfolio, "setup_page", show_identity=True)
+    with active[4]:
+        render_trading_links(portfolio)
+    with active[5]:
+        render_settings(settings, portfolio)
+    with active[6]:
         if st.button("Refresh Market Data", type="primary"):
             fetch_history.clear()
             st.rerun()
         st.write("Market cache is refreshed every five minutes.")
-    with active[4]:
-        render_holdings_editor(portfolio, "holdings_page")
-    with active[5]:
-        render_ledger()
-    with active[6]:
-        render_watchlist(portfolio)
     with active[7]:
+        render_ledger()
+    with active[8]:
+        render_watchlist(portfolio)
+    with active[9]:
         render_scout(portfolio)
 
 
